@@ -7,24 +7,29 @@ const routes = require('./routes/routes');
 
 const app = express();
 
+// Hapus helmet() sementara atau konfigurasi ulang
+// app.use(helmet());
+
+// Perbaiki konfigurasi CORS
 app.use(cors({
-    origin: ['*'],
+    origin: ['http://localhost:5173'], // Sesuaikan dengan origin frontend Anda
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(helmet());
+
+// Middleware untuk parsing JSON
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Middleware untuk CORS pre-flight requests
+app.options('*', cors()); // Tambahkan ini untuk handle OPTIONS requests
+
+// Routes
 app.use('/api', routes);
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    next();
-  });
-app.use((err, res) => {
+
+// Error handling middleware (perbaiki parameter)
+app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({
         status: 'error',
