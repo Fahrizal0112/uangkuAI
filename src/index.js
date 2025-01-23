@@ -12,7 +12,7 @@ const app = express();
 
 // Perbaiki konfigurasi CORS
 app.use(cors({
-    origin: ['http://localhost:5173'], // Sesuaikan dengan origin frontend Anda
+    origin: ['http://localhost:5173','http://8.215.199.5:3002'], // Sesuaikan dengan origin frontend Anda
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
