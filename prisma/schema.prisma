@@ -55,7 +55,7 @@ model Insight {
   id           Int      @id @default(autoincrement())
   user_id      Int
   user         Users    @relation(fields: [user_id], references: [id])
-  insight_text String
+  insight_text String   @db.Text
   insight_date DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
