@@ -2,22 +2,17 @@ const prisma = require("../utils/prisma");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-class InsightController {
+class AIController {
     async generateInsight(req, res) {
         try {
-            const user = await prisma.users.findUnique({
-                where: { id: req.user.id }
-            });
-
-            const startOfMonth = new Date();
-            startOfMonth.setDate(1);
-            startOfMonth.setHours(0, 0, 0, 0);
+            const lastWeek = new Date();
+            lastWeek.setDate(lastWeek.getDate() - 7);
 
             const transactions = await prisma.transactions.findMany({
                 where: {
                     user_id: req.user.id,
                     createdAt: {
-                        gte: startOfMonth
+                        gte: lastWeek
                     }
                 },
                 include: {
@@ -25,66 +20,84 @@ class InsightController {
                 }
             });
 
-            const expensesByCategory = transactions.reduce((acc, transaction) => {
-                const categoryName = transaction.category.name;
-                if (!acc[categoryName]) {
-                    acc[categoryName] = 0;
+            const totalExpense = transactions.reduce((sum, t) => sum + t.amount, 0);
+            const expensesByCategory = transactions.reduce((acc, t) => {
+                if (!acc[t.category.name]) {
+                    acc[t.category.name] = 0;
                 }
-                acc[categoryName] += transaction.amount;
+                acc[t.category.name] += t.amount;
                 return acc;
             }, {});
 
-            const totalExpense = transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+            const categories = Object.entries(expensesByCategory);
+            const largestCategory = categories.sort((a, b) => b[1] - a[1])[0];
+            const largestPercentage = Math.round((largestCategory[1] / totalExpense) * 100);
 
-            const monthlyIncome = user.monthly_income || 0;
-            const remainingBudget = monthlyIncome - totalExpense;
-            const spendingPercentage = (totalExpense / monthlyIncome) * 100;
+            const twoWeeksAgo = new Date();
+            twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+            
+            const previousTransactions = await prisma.transactions.findMany({
+                where: {
+                    user_id: req.user.id,
+                    createdAt: {
+                        gte: twoWeeksAgo,
+                        lt: lastWeek
+                    }
+                }
+            });
+
+            const previousTotal = previousTransactions.reduce((sum, t) => sum + t.amount, 0);
+            const percentageChange = previousTotal === 0 ? 0 : Math.min(Math.round(((totalExpense - previousTotal) / previousTotal) * 100), 100);
 
             const prompt = `
-            Analisis keuangan pengguna:
-            - Pendapatan bulanan: Rp${monthlyIncome.toLocaleString()}
-            - Total pengeluaran: Rp${totalExpense.toLocaleString()}
-            - Sisa budget: Rp${remainingBudget.toLocaleString()}
-            - Persentase pengeluaran: ${spendingPercentage.toFixed(2)}%
+                Analisis pengeluaran pengguna:
+                - Total pengeluaran: Rp${totalExpense.toLocaleString()}
+                - Perubahan: ${percentageChange}% dari minggu sebelumnya
+                - Kategori terbesar: ${largestCategory[0]} (${largestPercentage}%)
+                
+                Pengeluaran per kategori:
+                ${categories.map(([category, amount]) => 
+                    `- ${category}: Rp${amount.toLocaleString()}`
+                ).join('\n')}
 
-            Pengeluaran per kategori:
-            ${Object.entries(expensesByCategory)
-                .map(([category, amount]) => `${category}: Rp${amount.toLocaleString()}`)
-                .join('\n')}
-
-            Berikan saran keuangan dalam bahasa Indonesia dengan mempertimbangkan:
-            1. Apakah pengeluaran sudah sesuai dengan pendapatan
-            2. Kategori mana yang pengeluarannya terlalu tinggi
-            3. Bagaimana cara mengoptimalkan pengeluaran
-            4. Tips penghematan untuk kategori dengan pengeluaran tertinggi
-            5. Saran untuk menabung dan investasi
-
-            Berikan saran yang spesifik dan praktis dalam format poin-poin.
+                Berikan saran dan rekomendasi keuangan yang spesifik dalam bahasa Indonesia dengan mempertimbangkan:
+                1. Pola pengeluaran saat ini
+                2. Perubahan dari periode sebelumnya
+                3. Kategori dengan pengeluaran terbesar
+                4. Tips praktis untuk mengoptimalkan pengeluaran
+                
+                Berikan saran dalam format paragraf yang mudah dibaca, fokus pada solusi praktis.
             `;
 
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
             const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const insight = response.text();
+            const aiRecommendation = result.response.text();
+
+            const insightData = {
+                summary: {
+                    total: totalExpense,
+                    percentageChange: percentageChange,
+                    period: "7 Hari Terakhir"
+                },
+                largestCategory: {
+                    name: largestCategory[0],
+                    percentage: largestPercentage,
+                    description: `Melebihi rata-rata sebesar ${percentageChange}%`
+                },
+                recommendation: aiRecommendation
+            };
 
             await prisma.insight.create({
                 data: {
                     user_id: req.user.id,
-                    insight_text: insight,
+                    insight_text: JSON.stringify(insightData),
                     insight_date: new Date()
                 }
             });
 
             res.status(200).json({
                 status: "success",
-                data: {
-                    monthly_income: monthlyIncome,
-                    total_expense: totalExpense,
-                    remaining_budget: remainingBudget,
-                    spending_percentage: spendingPercentage,
-                    expenses_by_category: expensesByCategory,
-                    insight: insight
-                }
+                data: insightData
             });
 
         } catch (error) {
@@ -96,7 +109,6 @@ class InsightController {
         }
     }
 
-    // Mendapatkan riwayat insight
     async getInsightHistory(req, res) {
         try {
             const insights = await prisma.insight.findMany({
@@ -121,4 +133,4 @@ class InsightController {
     }
 }
 
-module.exports = new InsightController();
+module.exports = new AIController();
