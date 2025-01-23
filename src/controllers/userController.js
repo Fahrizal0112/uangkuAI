@@ -14,7 +14,7 @@ class UserController {
       if (existingUser) {
         return res.status(400).json({
           status: "error",
-          message: "Username sudah digunakan"
+          message: "Username already exists"
         });
       }
 
@@ -97,6 +97,13 @@ class UserController {
         message: "Internal server error"
       });
     }
+  }
+  async logout(req, res) {
+    res.clearCookie("token");
+    res.status(200).json({
+      status: "success",
+      message: "Logout successful"
+    });
   }
 }
 
