@@ -14,7 +14,7 @@ class UserController {
       if (existingUser) {
         return res.status(400).json({
           status: "error",
-          message: "Username sudah digunakan"
+          message: "Username already exists"
         });
       }
 
@@ -61,7 +61,7 @@ class UserController {
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({
           status: "error",
-          message: "Username atau password salah"
+          message: "Username or password is incorrect"
         });
       }
 
@@ -71,13 +71,18 @@ class UserController {
         { expiresIn: process.env.JWT_EXPIRES_IN }
       );
 
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 
+      });
+
       res.status(200).json({
         status: "success",
         data: {
           id: user.id,
           username: user.username,
-          monthly_income: user.monthly_income,
-          token
+          monthly_income: user.monthly_income
         }
       });
     } catch (error) {

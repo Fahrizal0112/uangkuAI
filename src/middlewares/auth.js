@@ -3,21 +3,17 @@ const prisma = require('../utils/prisma');
 
 const auth = async (req, res, next) => {
     try {
-        const authHeader = req.header('Authorization');
-        if (!authHeader) {
-            return res.status(401).json({
-                status: "error",
-                message: "Unauthorized"
-            });
-        }
-
-        const token = authHeader.replace('Bearer ', '');
+        let token = req.headers.cookie;
+        
         if (!token) {
             return res.status(401).json({
                 status: "error",
-                message: "Unauthorized"
+                message: "Please login first"
             });
         }
+
+        // Ekstrak token dari string cookie
+        token = token.split('=')[1];
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
@@ -27,8 +23,8 @@ const auth = async (req, res, next) => {
 
         if (!user) {
             return res.status(401).json({
-                status: "error",
-                message: "Unauthorized"
+                status: "error", 
+                message: "User not found"
             });
         }
 
@@ -38,7 +34,7 @@ const auth = async (req, res, next) => {
     } catch (error) {
         return res.status(401).json({
             status: "error",
-            message: "Unauthorized"
+            message: "Invalid token"
         });
     }
 };
